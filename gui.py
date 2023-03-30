@@ -23,6 +23,7 @@ class ContextMenu(tk.Menu):
         add_menu = tk.Menu(self, tearoff=False)
         self.add_cascade(label="Add", menu=add_menu)
         add_menu.add_command(label="Resistor", command=lambda: parent.CreateResistor())
+        add_menu.add_command(label="Diode", command=lambda: parent.CreateDiode())
 
 
 # Menu bar for the application
@@ -81,12 +82,6 @@ class Element(tk.Label):
         self.y = widget.winfo_y() - widget.startY + event.y
         widget.place(x=self.x, y=self.y)
 
-    def rotate(self):
-        self.rotation += 1
-        if self.rotation == 4:
-            self.rotation = 0
-        resistor = Resistor(self.parent, self.x, self.y, self.rotation)
-        self.destroy()
 
     def pop_up(self, event):
         self.elementmenu.post(event.x_root, event.y_root)
@@ -96,7 +91,25 @@ class Element(tk.Label):
 class Resistor(Element):
     def __init__(self, parent, posX, posY, rot = 0):
         super().__init__(parent, posX, posY, rot, "./elements/resistor.png")
+
+    def rotate(self):
+        self.rotation += 1
+        if self.rotation == 4:
+            self.rotation = 0
+        resistor = Resistor(self.parent, self.x, self.y, self.rotation)
+        self.destroy()
         
+# Diode element derived from element class
+class Diode(Element):
+    def __init__(self, parent, posX, posY, rot = 0):
+        super().__init__(parent, posX, posY, rot, "./elements/diode.png")
+
+    def rotate(self):
+        self.rotation += 1
+        if self.rotation == 4:
+            self.rotation = 0
+        diode = Diode(self.parent, self.x, self.y, self.rotation)
+        self.destroy()
 
 
 # The workspace for the application
@@ -123,6 +136,9 @@ class WorkSpace(tk.Canvas):
 
     def CreateResistor(self):
         resistor = Resistor(self, self.click_x, self.click_y)
+
+    def CreateDiode(self):
+        diode = Diode(self, self.click_x, self.click_y)
 
 
 # The main application
