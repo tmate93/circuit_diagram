@@ -1,85 +1,226 @@
-from tkinter import *
-from PIL import ImageTk,Image 
+import tkinter as tk
+from tkinter import ttk
+from PIL import ImageTk,Image
 
-##logic
-def create_label(element_type, posX, posY):
-    match element_type:
-        case "resistor":
-            img = ImageTk.PhotoImage(Image.open("./elements/resistor.png"))
-        case _:
-            return "undefined element"
-    
-    element = Label(canvas, image=img, bd=0, highlightthickness=0, relief='ridge')
-    element.image = img
-    element.place(x=posX, y=posY)
-    element.bind("<Button-1>", drag_start)
-    element.bind("<B1-Motion>", drag_motion)
 
-def create_canvas(w, h):
-    canvas.master = window
-    canvas.config(bg="gray", width=w, height=h, bd=0, highlightthickness=0, relief='ridge')
-    canvas.place(x=10, y=30)
+class ElementMenu(tk.Menu):
+    def __init__(self, parent):
+        tk.Menu.__init__(self, parent)
 
-    canvas.bind("<Button-3>", pop_up)
-    
-def drag_start(event):
-    widget = event.widget
-    widget.startX = event.x
-    widget.startY = event.y
+        self.config(tearoff = False)
 
-def drag_motion(event):
-    widget = event.widget
-    x = widget.winfo_x() - widget.startX + event.x
-    y = widget.winfo_y() - widget.startY + event.y
-    widget.place(x=x, y=y)
+        element_menu = tk.Menu(self, tearoff=False)
+        element_menu.add_command(label="Remove", underline=1, command=lambda: parent.destroy())
 
-def pop_up(event):
-    context_menu.tk_popup(event.x_root, event.y_root)
+class ContextMenu(tk.Menu):
+    def __init__(self, parent):
+        tk.Menu.__init__(self, parent)
 
-##Initialization
-# creating window
-window = Tk()
+        self.config(tearoff = False)
 
-# setting attribute
-window.state('zoomed')
-window.title("Drag-drop GUI")
+        add_menu = tk.Menu(self, tearoff=False)
+        self.add_cascade(label="Add", menu=add_menu)
+        add_menu.add_command(label="Resistor", command=lambda: parent.CreateResistor())
 
-##events/everything before mainloop
-# creating menu bar
-main_menu = Menu(window)
-window.config(menu=main_menu)
+        #file_menu = tk.Menu(self, tearoff=False)
+        #self.add_cascade(label="File",underline=0, menu=file_menu)
+        #file_menu.add_command(label="Exit", underline=1, command=self.quit)
 
-file_menu= Menu(main_menu, tearoff=False)
-main_menu.add_cascade(label="File", menu=file_menu)
-file_menu.add_command(label="New...")
-file_menu.add_separator()
-file_menu.add_command(label="Exit",command=window.quit)
 
-edit_menu = Menu(main_menu, tearoff=False)
-main_menu.add_cascade(label="Edit",menu=edit_menu)
-edit_menu.add_command(label="Cut")
-edit_menu.add_command(label="Copy")
- 
-option_menu = Menu(main_menu, tearoff=False)
-main_menu.add_cascade(label="Edit",menu=option_menu)
-option_menu.add_command(label="Find")
-option_menu.add_command(label="Find Next")
+class MenuBar(tk.Menu):
+    def __init__(self, parent):
+        tk.Menu.__init__(self, parent)
 
-# creating the canvas to display the elements on
-canvas = Canvas(window)
-create_canvas(1000, 500)
-canvas.pack()
+        file_menu = tk.Menu(self, tearoff=False)
+        self.add_cascade(label="File",underline=0, menu=file_menu)
+        file_menu.add_command(label="Exit", underline=1, command=self.quit)
 
-# creating context menu
-context_menu = Menu(canvas, tearoff=False)
+        edit_menu = tk.Menu(self, tearoff=False)
+        self.add_cascade(label="Edit",menu=edit_menu)
+        edit_menu.add_command(label="Cut")
+        edit_menu.add_command(label="Copy")
 
-element_menu = Menu(context_menu, tearoff=False)
-context_menu.add_cascade(label="Add", menu=element_menu)
-element_menu.add_command(label="Resistor", command=lambda: create_label("resistor", (window.winfo_pointerx() - canvas.winfo_rootx() - context_menu.winfo_width() - 100), (window.winfo_pointery() - canvas.winfo_rooty() - context_menu.winfo_height())))
+        option_menu = tk.Menu(self, tearoff=False)
+        self.add_cascade(label="Edit",menu=option_menu)
+        option_menu.add_command(label="Find")
+        option_menu.add_command(label="Find Next")
 
-# creating text labels to display on window screen
-create_label("resistor", 0, 0)
-create_label("resistor", 100, 100)
 
-window.mainloop()
+    def quit(self):
+        app.destroy()
 
+
+class Element(tk.Label):
+    def __init__(self, parent, posX, posY, rot):
+        tk.Label.__init__(self, parent, bd=0, highlightthickness=0, relief='ridge')
+
+        self.rotation = rot
+
+        self.place(x=posX, y=posY)
+
+        self.elementmenu = ElementMenu(self)
+
+        self.bind("<Button-1>", self.drag_start)
+        self.bind("<B1-Motion>", self.drag_motion)
+        self.bind("<Button-3>", self.pop_up)
+
+    def drag_start(self, event):
+        widget = event.widget
+        widget.startX = event.x
+        widget.startY = event.y
+
+    def drag_motion(self, event):
+        widget = event.widget
+        x = widget.winfo_x() - widget.startX + event.x
+        y = widget.winfo_y() - widget.startY + event.y
+        widget.place(x=x, y=y)
+
+    def pop_up(self, event):
+        print("hello")
+        self.elementmenu.post(event.x_root, event.y_root)
+        
+
+class Resistor(Element):
+    def __init__(self, parent, posX, posY, rot = 1):
+        super().__init__(parent, posX, posY, rot)
+
+        self.img=Image.open("./elements/resistor.png")
+        self.element_img = ImageTk.PhotoImage(self.img)
+        self.config(image=self.element_img)
+
+class WorkSpace(tk.Canvas):
+    def __init__(self, parent):
+        tk.Canvas.__init__(self, parent)
+
+        self.click_x, self.click_y = 0, 0
+        
+        #Creating work area
+        self.config(bg="gray", bd=0, highlightthickness=0, relief='ridge')
+        self.place(x=10, y=30)
+
+        #Creating context menu
+        self.contextmenu = ContextMenu(self)
+
+        self.bind("<Button-3>", self.pop_up)
+        
+
+    def pop_up(self, event):
+        self.click_x = event.x
+        self.click_y = event.y
+        self.contextmenu.post(event.x_root, event.y_root)
+
+    def CreateResistor(self):
+        resistor = Resistor(self, self.click_x, self.click_y)
+
+
+class Application(tk.Tk):
+    def __init__(self):
+        tk.Tk.__init__(self)
+        # Adding a title to the window
+        self.wm_title("Test Application")
+
+        # Setting default state of the window to fullscreen
+        self.wm_state('zoomed')
+
+        # Adding menu to the window
+        menubar = MenuBar(self)
+        self.config(menu=menubar)
+
+        #self.toolbar = Toolbar(self)
+        #self.navbar = Navbar(self)
+        self.main = Main(self)
+        self.statusbar = StatusBar(self)
+
+        #self.toolbar.pack(side="top", fill="x")
+        #self.navbar.pack(side="left", fill="y")
+        self.main.pack(side="top", fill="both", expand=True)
+        self.statusbar.pack(side="bottom", fill="x")
+
+
+class StatusBar(tk.Frame):
+    def __init__(self, parent):
+        tk.Frame.__init__(self, parent)
+        label = tk.Label(self, text="This is the Status bar")
+        label.pack(padx=10, pady=10)
+
+
+class Main(tk.Frame):
+    def __init__(self, parent):
+        tk.Frame.__init__(self, parent)
+
+        # creating a frame and assigning it to container
+        container = tk.Frame(self, height=400, width=600)
+        # specifying the region where the frame is packed in root
+        container.pack(side="top", fill="both", expand=True)
+
+        # configuring the location of the container using grid
+        container.grid_rowconfigure(0, weight=1)
+        container.grid_columnconfigure(0, weight=1)
+
+        # We will now create a dictionary of frames
+        self.frames = {}
+        # we'll create the frames themselves later but let's add the components to the dictionary.
+        for F in (A, B, C):
+            frame = F(container, self)
+
+            # the Application class acts as the root window for the frames.
+            self.frames[F] = frame
+            frame.grid(row=0, column=0, sticky="nsew")
+
+        # Using a method to switch frames
+        self.show_frame(A)
+
+    def show_frame(self, cont):
+        frame = self.frames[cont]
+        # raises the current frame to the top
+        frame.tkraise()
+
+
+class A(tk.Frame):
+    def __init__(self, parent, controller):
+        tk.Frame.__init__(self, parent)
+
+        workspace = WorkSpace(self)
+        workspace.pack(side="right", fill="both", expand=True)
+
+        # We use the switch_window_button in order to call the show_frame() method as a lambda function
+        switch_window_button = tk.Button(
+            self,
+            text="Go to the Side Page",
+            command=lambda: controller.show_frame(B),
+        )
+        switch_window_button.pack(side="bottom", fill=tk.X)
+
+class B(tk.Frame):
+    def __init__(self, parent, controller):
+        tk.Frame.__init__(self, parent)
+        label = tk.Label(self, text="This is the main area B")
+        label.pack(padx=10, pady=10)
+
+        # We use the switch_window_button in order to call the show_frame() method as a lambda function
+        switch_window_button = tk.Button(
+            self,
+            text="Go to the Side Page",
+            command=lambda: controller.show_frame(C),
+        )
+        switch_window_button.pack(side="bottom", fill=tk.X)
+
+class C(tk.Frame):
+    def __init__(self, parent, controller):
+        tk.Frame.__init__(self, parent)
+        label = tk.Label(self, text="This is the main area C")
+        label.pack(padx=10, pady=10)
+
+        # We use the switch_window_button in order to call the show_frame() method as a lambda function
+        switch_window_button = tk.Button(
+            self,
+            text="Go to the Side Page",
+            command=lambda: controller.show_frame(A),
+        )
+        switch_window_button.pack(side="bottom", fill=tk.X)
+
+
+
+if __name__ == "__main__":
+    app = Application()
+    app.mainloop()
