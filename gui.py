@@ -3,15 +3,17 @@ from tkinter import ttk
 from PIL import ImageTk,Image
 
 
+# Context menu for the elements
 class ElementMenu(tk.Menu):
     def __init__(self, parent):
         tk.Menu.__init__(self, parent)
 
         self.config(tearoff = False)
+        self.add_command(label="Rotate", underline=1, command=lambda: parent.rotate())
+        self.add_command(label="Remove", underline=1, command=lambda: parent.destroy())
 
-        element_menu = tk.Menu(self, tearoff=False)
-        element_menu.add_command(label="Remove", underline=1, command=lambda: parent.destroy())
 
+# Context menu for the workspace       
 class ContextMenu(tk.Menu):
     def __init__(self, parent):
         tk.Menu.__init__(self, parent)
@@ -22,11 +24,8 @@ class ContextMenu(tk.Menu):
         self.add_cascade(label="Add", menu=add_menu)
         add_menu.add_command(label="Resistor", command=lambda: parent.CreateResistor())
 
-        #file_menu = tk.Menu(self, tearoff=False)
-        #self.add_cascade(label="File",underline=0, menu=file_menu)
-        #file_menu.add_command(label="Exit", underline=1, command=self.quit)
 
-
+# Menu bar for the application
 class MenuBar(tk.Menu):
     def __init__(self, parent):
         tk.Menu.__init__(self, parent)
@@ -50,16 +49,23 @@ class MenuBar(tk.Menu):
         app.destroy()
 
 
+# Base element class
 class Element(tk.Label):
-    def __init__(self, parent, posX, posY, rot):
+    def __init__(self, parent, posX, posY, rot = 0, img = ""):
         tk.Label.__init__(self, parent, bd=0, highlightthickness=0, relief='ridge')
 
+        self.parent = parent
+        self.x, self.y = posX, posY
         self.rotation = rot
+        self.img=Image.open(img)
+        
+        self.element_img = ImageTk.PhotoImage(self.img.rotate(90 * self.rotation, expand=True))
+        self.config(image=self.element_img)
 
-        self.place(x=posX, y=posY)
+        self.place(x=self.x, y=self.y)
 
         self.elementmenu = ElementMenu(self)
-
+        
         self.bind("<Button-1>", self.drag_start)
         self.bind("<B1-Motion>", self.drag_motion)
         self.bind("<Button-3>", self.pop_up)
@@ -71,23 +77,29 @@ class Element(tk.Label):
 
     def drag_motion(self, event):
         widget = event.widget
-        x = widget.winfo_x() - widget.startX + event.x
-        y = widget.winfo_y() - widget.startY + event.y
-        widget.place(x=x, y=y)
+        self.x = widget.winfo_x() - widget.startX + event.x
+        self.y = widget.winfo_y() - widget.startY + event.y
+        widget.place(x=self.x, y=self.y)
+
+    def rotate(self):
+        self.rotation += 1
+        if self.rotation == 4:
+            self.rotation = 0
+        resistor = Resistor(self.parent, self.x, self.y, self.rotation)
+        self.destroy()
 
     def pop_up(self, event):
-        print("hello")
         self.elementmenu.post(event.x_root, event.y_root)
+
+        
+# Resistor element derived from element class
+class Resistor(Element):
+    def __init__(self, parent, posX, posY, rot = 0):
+        super().__init__(parent, posX, posY, rot, "./elements/resistor.png")
         
 
-class Resistor(Element):
-    def __init__(self, parent, posX, posY, rot = 1):
-        super().__init__(parent, posX, posY, rot)
 
-        self.img=Image.open("./elements/resistor.png")
-        self.element_img = ImageTk.PhotoImage(self.img)
-        self.config(image=self.element_img)
-
+# The workspace for the application
 class WorkSpace(tk.Canvas):
     def __init__(self, parent):
         tk.Canvas.__init__(self, parent)
@@ -113,6 +125,7 @@ class WorkSpace(tk.Canvas):
         resistor = Resistor(self, self.click_x, self.click_y)
 
 
+# The main application
 class Application(tk.Tk):
     def __init__(self):
         tk.Tk.__init__(self)
@@ -137,6 +150,7 @@ class Application(tk.Tk):
         self.statusbar.pack(side="bottom", fill="x")
 
 
+# Statusbar for the application
 class StatusBar(tk.Frame):
     def __init__(self, parent):
         tk.Frame.__init__(self, parent)
