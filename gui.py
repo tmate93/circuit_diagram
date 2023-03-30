@@ -60,7 +60,7 @@ class Element(tk.Label):
         self.rotation = rot
         self.img=Image.open(img)
         
-        self.element_img = ImageTk.PhotoImage(self.img.rotate(90 * self.rotation, expand=True))
+        self.element_img = ImageTk.PhotoImage(self.img.rotate(-90 * self.rotation, expand=True))
         self.config(image=self.element_img)
 
         self.place(x=self.x, y=self.y)
