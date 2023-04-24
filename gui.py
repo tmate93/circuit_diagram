@@ -1,6 +1,20 @@
 import tkinter as tk
 from tkinter import ttk
 from PIL import ImageTk,Image
+import json
+from tkinter.filedialog import asksaveasfile, askopenfile
+
+
+def writeToJSONFile(path, fileName, data):
+    json.dump(data, path)
+ 
+
+#Create metaclass to make class iterable
+class MetaClass(type):
+    def __iter__(self):
+        for attr in dir(self):
+            if not attr.startswith("__"):
+                yield attr
 
 
 # Context menu for the elements
@@ -22,8 +36,8 @@ class ContextMenu(tk.Menu):
 
         add_menu = tk.Menu(self, tearoff=False)
         self.add_cascade(label="Add", menu=add_menu)
-        add_menu.add_command(label="Resistor", command=lambda: parent.CreateResistor())
-        add_menu.add_command(label="Diode", command=lambda: parent.CreateDiode())
+        add_menu.add_command(label="Resistor", command=lambda: parent.CreateElement("Resistor"))
+        add_menu.add_command(label="Diode", command=lambda: parent.CreateElement("Diode"))
 
 
 # Menu bar for the application
@@ -33,6 +47,8 @@ class MenuBar(tk.Menu):
 
         file_menu = tk.Menu(self, tearoff=False)
         self.add_cascade(label="File",underline=0, menu=file_menu)
+        file_menu.add_command(label="Save", command=lambda: parent.Save())
+        file_menu.add_command(label="Load", command=lambda: parent.Load())
         file_menu.add_command(label="Exit", underline=1, command=self.quit)
 
         edit_menu = tk.Menu(self, tearoff=False)
@@ -51,20 +67,18 @@ class MenuBar(tk.Menu):
 
 
 # Base element class
-class Element(tk.Label):
+class Element(tk.Label, metaclass=MetaClass):
     def __init__(self, parent, posX, posY, rot = 0, img = ""):
         tk.Label.__init__(self, parent, bd=0, highlightthickness=0, relief='ridge')
 
         self.parent = parent
         self.x, self.y = posX, posY
         self.rotation = rot
-        self.img=Image.open(img)
+        self.img = ImageTk.PhotoImage(Image.open(img).rotate(-90 * self.rotation, expand=True))
+
         
-        self.element_img = ImageTk.PhotoImage(self.img.rotate(-90 * self.rotation, expand=True))
-        self.config(image=self.element_img)
-
+        self.config(image=self.img)
         self.place(x=self.x, y=self.y)
-
         self.elementmenu = ElementMenu(self)
         
         self.bind("<Button-1>", self.drag_start)
@@ -86,30 +100,35 @@ class Element(tk.Label):
     def pop_up(self, event):
         self.elementmenu.post(event.x_root, event.y_root)
 
+    def rotate(self):
+        self.rotation += 1
+        if self.rotation == 4:
+            self.rotation = 0
+        if isinstance(self, Diode):
+            diode = Diode(self.parent, self.x, self.y, self.rotation)
+        elif isinstance(self, Resistor):
+            resistor = Resistor(self.parent, self.x, self.y, self.rotation)
+        self.destroy()
+
+    def Save(self):
+        data = {}
+        data['type'] = self.__class__.__name__
+        data['posX'] = self.x
+        data['posY'] = self.y
+        data['rot'] = self.rotation
+
+        return data
         
 # Resistor element derived from element class
-class Resistor(Element):
+class Resistor(Element, metaclass=MetaClass):
     def __init__(self, parent, posX, posY, rot = 0):
         super().__init__(parent, posX, posY, rot, "./elements/resistor.png")
 
-    def rotate(self):
-        self.rotation += 1
-        if self.rotation == 4:
-            self.rotation = 0
-        resistor = Resistor(self.parent, self.x, self.y, self.rotation)
-        self.destroy()
         
 # Diode element derived from element class
-class Diode(Element):
+class Diode(Element, metaclass=MetaClass):
     def __init__(self, parent, posX, posY, rot = 0):
         super().__init__(parent, posX, posY, rot, "./elements/diode.png")
-
-    def rotate(self):
-        self.rotation += 1
-        if self.rotation == 4:
-            self.rotation = 0
-        diode = Diode(self.parent, self.x, self.y, self.rotation)
-        self.destroy()
 
 
 # The workspace for the application
@@ -134,12 +153,37 @@ class WorkSpace(tk.Canvas):
         self.click_y = event.y
         self.contextmenu.post(event.x_root, event.y_root)
 
-    def CreateResistor(self):
-        resistor = Resistor(self, self.click_x, self.click_y)
+    def CreateElement(self, elementType, posX = None, posY = None, rot = 0):
+        if posX is None and posY is None:
+            posX = self.click_x
+            posY = self.click_y
+            print("default value")
+        else:
+            ##self.year_released = year_released
+            print("has value")
 
-    def CreateDiode(self):
-        diode = Diode(self, self.click_x, self.click_y)
+        match elementType:
+                case "Resistor":
+                    resistor = Resistor(self, posX, posY, rot)
+                case "Diode":
+                    diode = Diode(self, posX, posY, rot)
+                case _:
+                    print("Invalid element")
 
+
+    def Save(self):
+        data = []
+        # Iterating through all children of the Canvas which are not ContextMenu
+        for child in filter(lambda w:not isinstance(w,ContextMenu), self.winfo_children()):
+            data.append(child.Save())
+        return data
+
+    def Load(self, data):
+        for child in filter(lambda w:not isinstance(w,ContextMenu), self.winfo_children()):
+            child.destroy()
+        for element in data:
+            ##print(element["type"])
+            self.CreateElement(element["type"], element["posX"], element["posY"], element["rot"])
 
 # The main application
 class Application(tk.Tk):
@@ -157,13 +201,37 @@ class Application(tk.Tk):
 
         #self.toolbar = Toolbar(self)
         #self.navbar = Navbar(self)
-        self.main = Main(self)
+        self.workspace = WorkSpace(self)
+        #self.main = Main(self)
         self.statusbar = StatusBar(self)
 
         #self.toolbar.pack(side="top", fill="x")
         #self.navbar.pack(side="left", fill="y")
-        self.main.pack(side="top", fill="both", expand=True)
+        self.workspace.pack(side="top", fill="both", expand=True)
+        #self.main.pack(side="top", fill="both", expand=True)
         self.statusbar.pack(side="bottom", fill="x")
+
+    def Save(self):
+        print("Application - saved")
+        data = self.workspace.Save()
+        print(data)
+        files = [('JSON File', '*.json')]
+        fileName='IOTEDU'
+        filepos = asksaveasfile(initialdir = "/output/", filetypes = files,defaultextension = json,initialfile='IOTEDU')
+        if filepos : # user selected a file
+            writeToJSONFile(filepos, fileName, data)
+        else: # user cancel the file browser window
+            print("No file chosen")
+
+    def Load(self):
+        print("Load")
+        file = askopenfile(title='Select input file', filetypes=[("JSON files", ".json")])
+        if file: # user selected a file
+            data = json.loads(file.read())
+            print(data)
+            self.workspace.Load(data)
+        else: # user cancel the file browser window
+            print("No file chosen") 
 
 
 # Statusbar for the application
@@ -173,7 +241,7 @@ class StatusBar(tk.Frame):
         label = tk.Label(self, text="This is the Status bar")
         label.pack(padx=10, pady=10)
 
-
+##
 class Main(tk.Frame):
     def __init__(self, parent):
         tk.Frame.__init__(self, parent)
@@ -205,7 +273,7 @@ class Main(tk.Frame):
         # raises the current frame to the top
         frame.tkraise()
 
-
+##
 class A(tk.Frame):
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
@@ -220,7 +288,7 @@ class A(tk.Frame):
             command=lambda: controller.show_frame(B),
         )
         switch_window_button.pack(side="bottom", fill=tk.X)
-
+##
 class B(tk.Frame):
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
@@ -234,7 +302,7 @@ class B(tk.Frame):
             command=lambda: controller.show_frame(C),
         )
         switch_window_button.pack(side="bottom", fill=tk.X)
-
+##
 class C(tk.Frame):
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
