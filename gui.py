@@ -4,6 +4,7 @@ from PIL import ImageTk,Image
 import json
 from tkinter.filedialog import asksaveasfile, askopenfile
 import math
+import random
 
 
 def writeToJSONFile(path, fileName, data):
@@ -118,18 +119,31 @@ class Connection():
                     anchorEnd = anchor2
         return anchorStart, anchorEnd
 
+    def Save(self):
+        data = {}
+        data['type'] = self.__class__.__name__
+        data['anchor1'] = self.anchor1.id
+        data['anchor2'] = self.anchor2.id
+        data['lines'] = self.lines
+
+        return data
+
 
 # Base element class
-class Element(tk.Label, metaclass=MetaClass):
-    def __init__(self, parent, posX, posY, rot = 0, connections = [], img = ""):
+class Element(tk.Label):
+    def __init__(self, parent, posX, posY, elementId = 0, rot = 0, img = ""):
         tk.Label.__init__(self, parent, bd=0, highlightthickness=0, relief='ridge')
 
+        self.id = None
+        if elementId == 0:
+            self.id = random.randint(1,99999)
+        else:
+            self.id = elementId
         self.parent = parent
         self.x, self.y = posX, posY
         self.rotation = rot
         self.img = ImageTk.PhotoImage(Image.open(img).rotate(-90 * self.rotation, expand=True))
         self.anchorPoints = []
-        ##self.connections = connections
         
         self.config(image=self.img)
         self.place(x=self.x, y=self.y)
@@ -173,9 +187,9 @@ class Element(tk.Label, metaclass=MetaClass):
         if self.rotation == 4:
             self.rotation = 0
         if isinstance(self, Diode):
-            element = Diode(self.parent, self.x, self.y, self.rotation)
+            element = Diode(self.parent, self.x, self.y, self.id, self.rotation)
         elif isinstance(self, Resistor):
-            element = Resistor(self.parent, self.x, self.y, self.rotation)
+            element = Resistor(self.parent, self.x, self.y, self.id, self.rotation)
         if self.parent.connections:
             for connection in self.parent.connections:
                 if connection.anchor1 == self:
@@ -190,15 +204,16 @@ class Element(tk.Label, metaclass=MetaClass):
         data['type'] = self.__class__.__name__
         data['posX'] = self.x
         data['posY'] = self.y
+        data['id'] = self.id
         data['rot'] = self.rotation
         data['anchorPts'] = self.anchorPoints
 
         return data
         
 # Resistor element derived from element class
-class Resistor(Element, metaclass=MetaClass):
-    def __init__(self, parent, posX, posY, rot = 0, connections = []):
-        super().__init__(parent, posX, posY, rot, connections, "./elements/resistor.png")
+class Resistor(Element):
+    def __init__(self, parent, posX, posY, elementId = 0, rot = 0, img = ""):
+        super().__init__(parent, posX, posY, elementId, rot, "./elements/resistor.png")
         self.update()
 
     def update(self):
@@ -210,9 +225,9 @@ class Resistor(Element, metaclass=MetaClass):
 
         
 # Diode element derived from element class
-class Diode(Element, metaclass=MetaClass):
-    def __init__(self, parent, posX, posY, rot = 0, connections = []):
-        super().__init__(parent, posX, posY, rot, connections, "./elements/diode.png")
+class Diode(Element):
+    def __init__(self, parent, posX, posY, elementId = 0, rot = 0, img = ""):
+        super().__init__(parent, posX, posY, elementId, rot, "./elements/diode.png")
         self.update()
 
     def update(self):
@@ -246,7 +261,7 @@ class WorkSpace(tk.Canvas):
         self.click_y = event.y
         self.contextmenu.post(event.x_root, event.y_root)
 
-    def CreateElement(self, elementType, posX = None, posY = None, rot = 0, connections = []):
+    def CreateElement(self, elementType, posX = None, posY = None,elementId = 0, rot = 0):
         if posX is None and posY is None:
             posX = self.click_x
             posY = self.click_y
@@ -256,9 +271,9 @@ class WorkSpace(tk.Canvas):
 
         match elementType:
                 case "Resistor":
-                    resistor = Resistor(self, posX, posY, rot, connections)
+                    resistor = Resistor(self, posX, posY, elementId, rot)
                 case "Diode":
-                    diode = Diode(self, posX, posY, rot, connections)
+                    diode = Diode(self, posX, posY, elementId, rot)
                 case _:
                     print("Invalid element")
 
@@ -294,14 +309,27 @@ class WorkSpace(tk.Canvas):
         # Iterating through all children of the Canvas which are not ContextMenu
         for child in filter(lambda w:not isinstance(w,ContextMenu), self.winfo_children()):
             data.append(child.Save())
+        for connection in self.connections:
+            data.append(connection.Save())
         return data
 
     def Load(self, data):
         for child in filter(lambda w:not isinstance(w,ContextMenu), self.winfo_children()):
+            self.deleteConnect(child)
             child.destroy()
+        self.connections.clear
         for element in data:
             ##print(element["type"])
-            self.CreateElement(element["type"], element["posX"], element["posY"], element["rot"])
+            if element["type"] != "Connection":
+                self.CreateElement(element["type"], element["posX"], element["posY"],element["id"], element["rot"])
+            else:
+                self.connections.append(Connection(self, self.getElementById(element["anchor1"]), self.getElementById(element["anchor2"])))
+
+    def getElementById(self, elementId):
+        for child in filter(lambda w:not isinstance(w,ContextMenu), self.winfo_children()):
+            if child.id == elementId:
+                return child
+        return None
 
 # The main application
 class Application(tk.Tk):
