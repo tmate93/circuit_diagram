@@ -3,12 +3,13 @@ from tkinter import ttk
 from PIL import ImageTk,Image
 import json
 from tkinter.filedialog import asksaveasfile, askopenfile
+import math
 
 
 def writeToJSONFile(path, fileName, data):
     json.dump(data, path)
  
-
+##
 #Create metaclass to make class iterable
 class MetaClass(type):
     def __iter__(self):
@@ -24,6 +25,8 @@ class ElementMenu(tk.Menu):
 
         self.config(tearoff = False)
         self.add_command(label="Rotate", underline=1, command=lambda: parent.rotate())
+        self.add_command(label="Connect", underline=1, command=lambda: parent.parent.connect(parent.x, parent.y, parent))
+        self.add_command(label="Delete Connection", underline=1, command=lambda: parent.parent.deleteConnect(parent))
         self.add_command(label="Remove", underline=1, command=lambda: parent.destroy())
 
 
@@ -66,16 +69,67 @@ class MenuBar(tk.Menu):
         app.destroy()
 
 
+# Connections
+class Connection():
+    def __init__(self, parent, anchor1, anchor2):
+        self.parent = parent
+        self.anchor1, self.anchor2 = anchor1, anchor2
+
+        self.lines = None
+        self.update()
+
+    def createConnection(self, anchors):
+        lines = []
+        print(anchors)
+        x1, y1 = anchors[0]
+        x2, y2 = anchors[1]
+        if abs(x1 - x2) >= abs(y1 - y2):
+            lines.append(self.parent.create_line(x1 - 1, y1 - 1, (x2 + x1) / 2 - 1, y1 - 1, width = 3))
+            lines.append(self.parent.create_line((x2 + x1) / 2 - 1, y1 - 1, (x2 + x1) / 2 - 1, y2 - 1, width = 3))
+            lines.append(self.parent.create_line((x2 + x1) / 2 - 1, y2 - 1, x2 - 1, y2 - 1, width = 3))
+        else:
+            lines.append(self.parent.create_line(x1 - 1, y1 - 1, x1 - 1, (y2 + y1) / 2 - 1, width = 3))
+            lines.append(self.parent.create_line(x1 - 1, (y2 + y1) / 2 - 1, x2 - 1, (y2 + y1) / 2 - 1, width = 3))
+            lines.append(self.parent.create_line(x2 - 1, (y2 + y1) / 2 - 1, x2 -1, y2 - 1, width = 3))
+        return lines
+
+    def update(self):
+        if self.lines:
+            for line in self.lines:
+                self.parent.delete(line)
+        print("updating")
+        anchors = self.checkAnchors(self.anchor1, self.anchor2)
+        self.lines = self.createConnection(anchors)
+        ##self.parent.create_line(anchors[0][0] - 1, anchors[0][1] - 1, anchors[1][0] - 1, anchors[1][1] - 1, width = 3)
+
+    def delete(self):
+        self.anchor1 = None
+        self.anchor2 = None
+        self.lines = None
+
+    def checkAnchors(self, element1, element2):
+        tmp = 999999
+        anchorStart, anchorEnd = None, None
+        for anchor1 in element1.anchorPoints:
+            for anchor2 in element2.anchorPoints:
+                if math.sqrt(math.pow(anchor2[0] - anchor1[0], 2) + math.pow(anchor2[1] - anchor1[1], 2)) < tmp:
+                    tmp = math.sqrt(math.pow(anchor2[0] - anchor1[0], 2) + math.pow(anchor2[1] - anchor1[1], 2))
+                    anchorStart = anchor1
+                    anchorEnd = anchor2
+        return anchorStart, anchorEnd
+
+
 # Base element class
 class Element(tk.Label, metaclass=MetaClass):
-    def __init__(self, parent, posX, posY, rot = 0, img = ""):
+    def __init__(self, parent, posX, posY, rot = 0, connections = [], img = ""):
         tk.Label.__init__(self, parent, bd=0, highlightthickness=0, relief='ridge')
 
         self.parent = parent
         self.x, self.y = posX, posY
         self.rotation = rot
         self.img = ImageTk.PhotoImage(Image.open(img).rotate(-90 * self.rotation, expand=True))
-
+        self.anchorPoints = []
+        ##self.connections = connections
         
         self.config(image=self.img)
         self.place(x=self.x, y=self.y)
@@ -83,31 +137,52 @@ class Element(tk.Label, metaclass=MetaClass):
         
         self.bind("<Button-1>", self.drag_start)
         self.bind("<B1-Motion>", self.drag_motion)
+        self.bind("<ButtonRelease-1>", self.drag_end)
         self.bind("<Button-3>", self.pop_up)
+
 
     def drag_start(self, event):
         widget = event.widget
         widget.startX = event.x
         widget.startY = event.y
+        widget.update()
 
     def drag_motion(self, event):
         widget = event.widget
         self.x = widget.winfo_x() - widget.startX + event.x
         self.y = widget.winfo_y() - widget.startY + event.y
         widget.place(x=self.x, y=self.y)
+        
+
+    def drag_end(self, event):
+        widget = event.widget
+        widget.update()
+        if widget.parent.connections:
+            for connection in widget.parent.connections:
+                connection.update()
 
 
     def pop_up(self, event):
         self.elementmenu.post(event.x_root, event.y_root)
+        self.parent.click_x = event.x_root
+        self.parent.click_y = event.y_root
 
     def rotate(self):
+        element = None
         self.rotation += 1
         if self.rotation == 4:
             self.rotation = 0
         if isinstance(self, Diode):
-            diode = Diode(self.parent, self.x, self.y, self.rotation)
+            element = Diode(self.parent, self.x, self.y, self.rotation)
         elif isinstance(self, Resistor):
-            resistor = Resistor(self.parent, self.x, self.y, self.rotation)
+            element = Resistor(self.parent, self.x, self.y, self.rotation)
+        if self.parent.connections:
+            for connection in self.parent.connections:
+                if connection.anchor1 == self:
+                    connection.anchor1 = element
+                if connection.anchor2 == self:
+                    connection.anchor2 = element 
+                connection.update()
         self.destroy()
 
     def Save(self):
@@ -116,19 +191,36 @@ class Element(tk.Label, metaclass=MetaClass):
         data['posX'] = self.x
         data['posY'] = self.y
         data['rot'] = self.rotation
+        data['anchorPts'] = self.anchorPoints
 
         return data
         
 # Resistor element derived from element class
 class Resistor(Element, metaclass=MetaClass):
-    def __init__(self, parent, posX, posY, rot = 0):
-        super().__init__(parent, posX, posY, rot, "./elements/resistor.png")
+    def __init__(self, parent, posX, posY, rot = 0, connections = []):
+        super().__init__(parent, posX, posY, rot, connections, "./elements/resistor.png")
+        self.update()
+
+    def update(self):
+        print("widget update")
+        if self.rotation == 0 or self.rotation == 2:
+            self.anchorPoints = [[self.x, (self.y + self.winfo_reqheight()/2)],[(self.x + self.winfo_reqwidth()), (self.y + self.winfo_reqheight()/2)]]
+        elif self.rotation == 1 or self.rotation == 3:
+            self.anchorPoints = [[(self.x + self.winfo_reqwidth()/2), self.y],[(self.x + self.winfo_reqwidth()/2), (self.y + self.winfo_reqheight())]]
 
         
 # Diode element derived from element class
 class Diode(Element, metaclass=MetaClass):
-    def __init__(self, parent, posX, posY, rot = 0):
-        super().__init__(parent, posX, posY, rot, "./elements/diode.png")
+    def __init__(self, parent, posX, posY, rot = 0, connections = []):
+        super().__init__(parent, posX, posY, rot, connections, "./elements/diode.png")
+        self.update()
+
+    def update(self):
+        print("widget update")
+        if self.rotation == 0 or self.rotation == 2:
+            self.anchorPoints = [[self.x, (self.y + self.winfo_reqheight()/2)],[(self.x + self.winfo_reqwidth()), (self.y + self.winfo_reqheight()/2)]]
+        elif self.rotation == 1 or self.rotation == 3:
+            self.anchorPoints = [[(self.x + self.winfo_reqwidth()/2), self.y],[(self.x + self.winfo_reqwidth()/2), (self.y + self.winfo_reqheight())]]
 
 
 # The workspace for the application
@@ -137,6 +229,8 @@ class WorkSpace(tk.Canvas):
         tk.Canvas.__init__(self, parent)
 
         self.click_x, self.click_y = 0, 0
+        self.connectStart = None
+        self.connections = []
         
         #Creating work area
         self.config(bg="gray", bd=0, highlightthickness=0, relief='ridge')
@@ -144,7 +238,6 @@ class WorkSpace(tk.Canvas):
 
         #Creating context menu
         self.contextmenu = ContextMenu(self)
-
         self.bind("<Button-3>", self.pop_up)
         
 
@@ -153,22 +246,47 @@ class WorkSpace(tk.Canvas):
         self.click_y = event.y
         self.contextmenu.post(event.x_root, event.y_root)
 
-    def CreateElement(self, elementType, posX = None, posY = None, rot = 0):
+    def CreateElement(self, elementType, posX = None, posY = None, rot = 0, connections = []):
         if posX is None and posY is None:
             posX = self.click_x
             posY = self.click_y
             print("default value")
         else:
-            ##self.year_released = year_released
             print("has value")
 
         match elementType:
                 case "Resistor":
-                    resistor = Resistor(self, posX, posY, rot)
+                    resistor = Resistor(self, posX, posY, rot, connections)
                 case "Diode":
-                    diode = Diode(self, posX, posY, rot)
+                    diode = Diode(self, posX, posY, rot, connections)
                 case _:
                     print("Invalid element")
+
+
+    def connect(self, posX, posY, element):
+        if self.connectStart == None:
+            self.connectStart = element
+        else:
+            self.connections.append(Connection(self, self.connectStart, element))
+            self.connectStart = None
+
+    def deleteConnect(self, element):
+        ##print(self.connections)
+        tmp = []
+        for connection in self.connections:
+            ##print(connection)
+            if connection.anchor1 == element:
+                for line in connection.lines:
+                    self.delete(line)
+                connection.delete()
+                tmp.append(connection)
+            elif connection.anchor2 == element:
+                for line in connection.lines:
+                    self.delete(line)
+                connection.delete()
+                tmp.append(connection)
+        for element in tmp:
+            self.connections.remove(element)
 
 
     def Save(self):
