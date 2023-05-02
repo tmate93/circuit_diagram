@@ -7,16 +7,9 @@ import math
 import random
 
 
+# Function for saving to file
 def writeToJSONFile(path, fileName, data):
     json.dump(data, path)
- 
-##
-#Create metaclass to make class iterable
-class MetaClass(type):
-    def __iter__(self):
-        for attr in dir(self):
-            if not attr.startswith("__"):
-                yield attr
 
 
 # Context menu for the elements
@@ -55,17 +48,6 @@ class MenuBar(tk.Menu):
         file_menu.add_command(label="Load", command=lambda: parent.Load())
         file_menu.add_command(label="Exit", underline=1, command=self.quit)
 
-        edit_menu = tk.Menu(self, tearoff=False)
-        self.add_cascade(label="Edit",menu=edit_menu)
-        edit_menu.add_command(label="Cut")
-        edit_menu.add_command(label="Copy")
-
-        option_menu = tk.Menu(self, tearoff=False)
-        self.add_cascade(label="Edit",menu=option_menu)
-        option_menu.add_command(label="Find")
-        option_menu.add_command(label="Find Next")
-
-
     def quit(self):
         app.destroy()
 
@@ -81,7 +63,6 @@ class Connection():
 
     def createConnection(self, anchors):
         lines = []
-        print(anchors)
         x1, y1 = anchors[0]
         x2, y2 = anchors[1]
         if abs(x1 - x2) >= abs(y1 - y2):
@@ -98,10 +79,8 @@ class Connection():
         if self.lines:
             for line in self.lines:
                 self.parent.delete(line)
-        print("updating")
         anchors = self.checkAnchors(self.anchor1, self.anchor2)
         self.lines = self.createConnection(anchors)
-        ##self.parent.create_line(anchors[0][0] - 1, anchors[0][1] - 1, anchors[1][0] - 1, anchors[1][1] - 1, width = 3)
 
     def delete(self):
         self.anchor1 = None
@@ -167,14 +146,12 @@ class Element(tk.Label):
         self.y = widget.winfo_y() - widget.startY + event.y
         widget.place(x=self.x, y=self.y)
         
-
     def drag_end(self, event):
         widget = event.widget
         widget.update()
         if widget.parent.connections:
             for connection in widget.parent.connections:
                 connection.update()
-
 
     def pop_up(self, event):
         self.elementmenu.post(event.x_root, event.y_root)
@@ -209,6 +186,7 @@ class Element(tk.Label):
         data['anchorPts'] = self.anchorPoints
 
         return data
+
         
 # Resistor element derived from element class
 class Resistor(Element):
@@ -217,7 +195,6 @@ class Resistor(Element):
         self.update()
 
     def update(self):
-        print("widget update")
         if self.rotation == 0 or self.rotation == 2:
             self.anchorPoints = [[self.x, (self.y + self.winfo_reqheight()/2)],[(self.x + self.winfo_reqwidth()), (self.y + self.winfo_reqheight()/2)]]
         elif self.rotation == 1 or self.rotation == 3:
@@ -231,7 +208,6 @@ class Diode(Element):
         self.update()
 
     def update(self):
-        print("widget update")
         if self.rotation == 0 or self.rotation == 2:
             self.anchorPoints = [[self.x, (self.y + self.winfo_reqheight()/2)],[(self.x + self.winfo_reqwidth()), (self.y + self.winfo_reqheight()/2)]]
         elif self.rotation == 1 or self.rotation == 3:
@@ -265,9 +241,6 @@ class WorkSpace(tk.Canvas):
         if posX is None and posY is None:
             posX = self.click_x
             posY = self.click_y
-            print("default value")
-        else:
-            print("has value")
 
         match elementType:
                 case "Resistor":
@@ -277,7 +250,6 @@ class WorkSpace(tk.Canvas):
                 case _:
                     print("Invalid element")
 
-
     def connect(self, posX, posY, element):
         if self.connectStart == None:
             self.connectStart = element
@@ -286,10 +258,8 @@ class WorkSpace(tk.Canvas):
             self.connectStart = None
 
     def deleteConnect(self, element):
-        ##print(self.connections)
         tmp = []
         for connection in self.connections:
-            ##print(connection)
             if connection.anchor1 == element:
                 for line in connection.lines:
                     self.delete(line)
@@ -302,7 +272,6 @@ class WorkSpace(tk.Canvas):
                 tmp.append(connection)
         for element in tmp:
             self.connections.remove(element)
-
 
     def Save(self):
         data = []
@@ -319,7 +288,6 @@ class WorkSpace(tk.Canvas):
             child.destroy()
         self.connections.clear
         for element in data:
-            ##print(element["type"])
             if element["type"] != "Connection":
                 self.CreateElement(element["type"], element["posX"], element["posY"],element["id"], element["rot"])
             else:
@@ -336,7 +304,7 @@ class Application(tk.Tk):
     def __init__(self):
         tk.Tk.__init__(self)
         # Adding a title to the window
-        self.wm_title("Test Application")
+        self.wm_title("Circuit diagram editor")
 
         # Setting default state of the window to fullscreen
         self.wm_state('zoomed')
@@ -345,36 +313,26 @@ class Application(tk.Tk):
         menubar = MenuBar(self)
         self.config(menu=menubar)
 
-        #self.toolbar = Toolbar(self)
-        #self.navbar = Navbar(self)
         self.workspace = WorkSpace(self)
-        #self.main = Main(self)
         self.statusbar = StatusBar(self)
 
-        #self.toolbar.pack(side="top", fill="x")
-        #self.navbar.pack(side="left", fill="y")
         self.workspace.pack(side="top", fill="both", expand=True)
-        #self.main.pack(side="top", fill="both", expand=True)
         self.statusbar.pack(side="bottom", fill="x")
 
     def Save(self):
-        print("Application - saved")
         data = self.workspace.Save()
-        print(data)
         files = [('JSON File', '*.json')]
-        fileName='IOTEDU'
-        filepos = asksaveasfile(initialdir = "/output/", filetypes = files,defaultextension = json,initialfile='IOTEDU')
+        fileName='circuit'
+        filepos = asksaveasfile(initialdir = "/output/", filetypes = files,defaultextension = json,initialfile='circuit')
         if filepos : # user selected a file
             writeToJSONFile(filepos, fileName, data)
         else: # user cancel the file browser window
             print("No file chosen")
 
     def Load(self):
-        print("Load")
         file = askopenfile(title='Select input file', filetypes=[("JSON files", ".json")])
         if file: # user selected a file
             data = json.loads(file.read())
-            print(data)
             self.workspace.Load(data)
         else: # user cancel the file browser window
             print("No file chosen") 
@@ -386,83 +344,6 @@ class StatusBar(tk.Frame):
         tk.Frame.__init__(self, parent)
         label = tk.Label(self, text="This is the Status bar")
         label.pack(padx=10, pady=10)
-
-##
-class Main(tk.Frame):
-    def __init__(self, parent):
-        tk.Frame.__init__(self, parent)
-
-        # creating a frame and assigning it to container
-        container = tk.Frame(self, height=400, width=600)
-        # specifying the region where the frame is packed in root
-        container.pack(side="top", fill="both", expand=True)
-
-        # configuring the location of the container using grid
-        container.grid_rowconfigure(0, weight=1)
-        container.grid_columnconfigure(0, weight=1)
-
-        # We will now create a dictionary of frames
-        self.frames = {}
-        # we'll create the frames themselves later but let's add the components to the dictionary.
-        for F in (A, B, C):
-            frame = F(container, self)
-
-            # the Application class acts as the root window for the frames.
-            self.frames[F] = frame
-            frame.grid(row=0, column=0, sticky="nsew")
-
-        # Using a method to switch frames
-        self.show_frame(A)
-
-    def show_frame(self, cont):
-        frame = self.frames[cont]
-        # raises the current frame to the top
-        frame.tkraise()
-
-##
-class A(tk.Frame):
-    def __init__(self, parent, controller):
-        tk.Frame.__init__(self, parent)
-
-        workspace = WorkSpace(self)
-        workspace.pack(side="right", fill="both", expand=True)
-
-        # We use the switch_window_button in order to call the show_frame() method as a lambda function
-        switch_window_button = tk.Button(
-            self,
-            text="Go to the Side Page",
-            command=lambda: controller.show_frame(B),
-        )
-        switch_window_button.pack(side="bottom", fill=tk.X)
-##
-class B(tk.Frame):
-    def __init__(self, parent, controller):
-        tk.Frame.__init__(self, parent)
-        label = tk.Label(self, text="This is the main area B")
-        label.pack(padx=10, pady=10)
-
-        # We use the switch_window_button in order to call the show_frame() method as a lambda function
-        switch_window_button = tk.Button(
-            self,
-            text="Go to the Side Page",
-            command=lambda: controller.show_frame(C),
-        )
-        switch_window_button.pack(side="bottom", fill=tk.X)
-##
-class C(tk.Frame):
-    def __init__(self, parent, controller):
-        tk.Frame.__init__(self, parent)
-        label = tk.Label(self, text="This is the main area C")
-        label.pack(padx=10, pady=10)
-
-        # We use the switch_window_button in order to call the show_frame() method as a lambda function
-        switch_window_button = tk.Button(
-            self,
-            text="Go to the Side Page",
-            command=lambda: controller.show_frame(A),
-        )
-        switch_window_button.pack(side="bottom", fill=tk.X)
-
 
 
 if __name__ == "__main__":
