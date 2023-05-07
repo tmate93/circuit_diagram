@@ -208,11 +208,4 @@ def main(img):
     for connection in connections:
         data.append(connection_to_JSON(connection))
 
-    #print(elements)
-    #print("////")
-    #print(connections)
-    #print(data)
-
     return data
-
-#data = main()
