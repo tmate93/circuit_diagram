@@ -1,7 +1,6 @@
 import cv2 as cv
 import imutils as im
 import numpy as np
-import json
 
 def rotate_image(image, angle):
     result = im.rotate_bound(image, angle)

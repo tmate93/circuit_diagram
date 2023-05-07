@@ -352,7 +352,7 @@ class Application(tk.Tk):
 class StatusBar(tk.Frame):
     def __init__(self, parent):
         tk.Frame.__init__(self, parent)
-        label = tk.Label(self, text="This is the Status bar")
+        label = tk.Label(self)
         label.pack(padx=10, pady=10)
 
 
