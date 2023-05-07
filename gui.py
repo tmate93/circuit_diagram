@@ -5,6 +5,7 @@ import json
 from tkinter.filedialog import asksaveasfile, askopenfile
 import math
 import random
+import template_matching as tm
 
 
 # Function for saving to file
@@ -46,6 +47,7 @@ class MenuBar(tk.Menu):
         self.add_cascade(label="File",underline=0, menu=file_menu)
         file_menu.add_command(label="Save", command=lambda: parent.Save())
         file_menu.add_command(label="Load", command=lambda: parent.Load())
+        file_menu.add_command(label="Load from file", command=lambda: parent.LoadFromFile())
         file_menu.add_command(label="Exit", underline=1, command=self.quit)
 
     def quit(self):
@@ -337,6 +339,14 @@ class Application(tk.Tk):
         else: # user cancel the file browser window
             print("No file chosen") 
 
+    def LoadFromFile(self):
+        file = askopenfile(title='Select input file', filetypes=[("PNG files", ".png")])
+        if file: # user selected a file
+            path = file.name.split("/")
+            data = tm.main(path[len(path)-1])
+            self.workspace.Load(data)
+        else: # user cancel the file browser window
+            print("No file chosen")     
 
 # Statusbar for the application
 class StatusBar(tk.Frame):
